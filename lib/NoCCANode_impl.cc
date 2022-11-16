@@ -25,37 +25,147 @@
 #include <gnuradio/io_signature.h>
 #include "NoCCANode_impl.h"
 
+#define MAX 9 //精度为小数点后面1位 999为小数点后面3位
+#define PROBABLITY 0.1
+#define DIFSWINDOWCOUNT 7
+#define LISTENRTS 30
+#define DIFSLength 1
 namespace gr {
   namespace LoRaNoCCA {
 
     NoCCANode::sptr
-    NoCCANode::make()
+    NoCCANode::make(uint32_t NodeID)
     {
       return gnuradio::get_initial_sptr
-        (new NoCCANode_impl());
+        (new NoCCANode_impl(NodeID));
     }
 
 
     /*
      * The private constructor
      */
-    NoCCANode_impl::NoCCANode_impl()
+    NoCCANode_impl::NoCCANode_impl(uint32_t NodeID)
       : gr::block("NoCCANode",
-              gr::io_signature::make(<+MIN_IN+>, <+MAX_IN+>, sizeof(<+ITYPE+>)),
-              gr::io_signature::make(<+MIN_OUT+>, <+MAX_OUT+>, sizeof(<+OTYPE+>)))
-    {}
+              gr::io_signature::make(0, 0, 0),
+              gr::io_signature::make(0, 0, 0)),
+              m_nodeId(NodeID)
+    {
+      m_state = STATE_RESET;
+      m_outputData = pmt::mp("outputData");
+      m_inputRTS = pmt::mp("InputRTS");
+      m_inputData = pmt::mp("InputData");
+
+      message_port_register_in(m_inputRTS);
+      message_port_register_in(m_inputData);
+      message_port_register_out(m_outputData);
+      
+
+      set_msg_handler(m_inputRTS,boost::bind(&NoCCANode_impl::receiveRTSMessage,this,_1));
+      set_msg_handler(m_inputData,boost::bind(&NoCCANode_impl::receiveDataMessage,this,_1));
+      srand(time(NULL));
+    
+      probablity = PROBABLITY;
+      
+      int p = rand() % (MAX + 1) / (float)(MAX + 1);
+      if(p > (1- probablity)){
+        m_phase = STATE_PHASE2;
+      }else{
+        m_phase = STATE_PHASE1;
+      }
+
+      DIFSLength = 1;
+      DIFSWindowCount = DIFSWINDOWCOUNT;
+      ListenRTSLength = DIFSWindowCount * DIFSLength + LISTENRTS;
+
+      NAVLength = -1;
+    }
 
     /*
      * Our virtual destructor.
      */
     NoCCANode_impl::~NoCCANode_impl()
     {
+      
+    }
+
+    std::vector<std::string> 
+    NoCCANode_impl::parseRTSMessage(std::string msgString){
+      //message 格式如下：
+      //Type:RTS,NodeId:1,Duration:10
+
+      std::vector<std::string> res;
+      std::string str;
+      //获取TYPE
+      int indexColon = msgString.find(":");
+      int indexComma = msgString.find(",");
+      res.push_back(msgString.substr(indexColon+1,indexComma - indexColon - 1));
+
+      //获取NODEID
+      indexColon = msgString.find(":",indexComma);
+      indexComma = msgString.find(",",indexColon);
+      res.push_back(msgString.substr(indexColon+1,indexComma - indexColon - 1));
+
+      //获取Duration
+      indexColon = msgString.find(":",indexComma);
+      res.push_back(msgString.substr(indexColon+1,msgString.length() - indexColon - 1));
+      
+      return res;
+    }
+    void
+    NoCCANode_impl::receiveDataMessage(pmt::pmt_t msg){
+      //自动添加 如果messsages有数据且在reset状态，就会自动切换寻找
+      messages.push_back(pmt::symbol_to_string(msg));
+    }
+    void 
+    NoCCANode_impl::receiveRTSMessage(pmt::pmt_t msg){
+      if(m_state != STATE_LISTEN){
+        return;
+      }
+      std::string msgString = pmt::symbol_to_string(msg);
+      //message 格式如下：
+      //Type:RTS,NodeId:1,Duration:10
+
+      if(msgString.find("RTS") != std::string::npos){
+        //HEADER 包括20bytes
+        std::vector<std::string> res = parseMessage(msgString);        
+        NAVLength = std::stoi(res[2]) + 10;
+        m_state = STATE_NAV;
+      }else{
+        std::cout<<"Receive DATA:: "<<msgString<<std::endl;
+      }
+    }
+
+    void
+    NoCCANode_impl::sendRTSPacket(){
+      int totalLen = 0;
+      for(int i = 0;i < messages.size();i++){
+        totalLen += messages[i].length();
+        totalLen += 1;//添加一个换行符号
+      }
+
+      //class A采用先来先服务策略
+      std::string message = "Type:RTS,NodeId:"+to_string(m_nodeId)+",Duration:"+to_string(totalLen);
+      pmt::pmt_t pmtmsg = pmt::string_to_symbol(message);
+      message_port_pub(m_outputData,pmtmsg);
+    }
+    void
+    NoCCANode_impl::sendDataPacket(){
+      std::string msg;
+      int totalLen = 0;
+      for(int i = 0;i < messages.size();i++){
+        totalLen += messages[i].length();
+        msg.append(messages[i]);
+        msg.push_back('\n');
+      }
+      pmt::pmt_t pmtmsg = pmt::string_to_symbol(message);
+      message_port_pub(m_outputData,pmtmsg);
     }
 
     void
     NoCCANode_impl::forecast (int noutput_items, gr_vector_int &ninput_items_required)
     {
       /* <+forecast+> e.g. ninput_items_required[0] = noutput_items */
+      // ninput_items_required[0] = noutput_items;
     }
 
     int
@@ -64,16 +174,126 @@ namespace gr {
                        gr_vector_const_void_star &input_items,
                        gr_vector_void_star &output_items)
     {
-      const <+ITYPE+> *in = (const <+ITYPE+> *) input_items[0];
-      <+OTYPE+> *out = (<+OTYPE+> *) output_items[0];
+      const gr_complex *in = (const gr_complex *) input_items[0];
+      uint32_t * out = (uint32_t *) output_items[0];
+      if (m_state == STATE_RESET){
+        if(messages.size() > 0){
+          int p = rand() % (MAX + 1) / (float)(MAX + 1);
+          if(p > (1- probablity)){
+            m_phase = STATE_PHASE2;
+          }else{
+            m_phase = STATE_PHASE1;
+          }
+          NAVLength = ListenRTSLength;
+          DIFSWindowCount = DIFSWINDOWCOUNT;
+          DIFSLength = 1;
+          ListenRTSLength = DIFSWindowCount * DIFSLength + LISTENRTS;
+
+        }else{
+           // Do <+signal processing+>
+          // Tell runtime system how many input items we consumed on
+          // each input stream.
+          consume_each (0);
+
+          // Tell runtime system how many output items we produced.
+          return 0;
+        }
+      }else if(m_state == STATE_NAV){
+        NAVLength--;
+        if(NAVLength <= 0){
+          m_state = STATE_RESET;
+          NAVLength = ListenRTSLength;
+
+        }
+      }
+      switch (m_phase)
+      {
+      
+      case STATE_PHASE1:{
+        m_state = STATE_LISTEN;
+        switch (m_state)
+        {
+          case STATE_LISTEN:{
+            ListenRTSLength--;
+            if(ListenRTSLength <= 0){
+              m_phase = STATE_PHASE2;
+              m_state = STATE_DIFS;
+            }
+            break;
+          }
+          default:
+            break;
+        }
+        break;
+      }
+      case STATE_PHASE2:{
+        switch (m_state)
+        {
+          case STATE_DIFS:{
+            DIFSLength--;
+            if(DIFSLength <= 0){
+              DIFSLength = ;
+              DIFSWindowCount--;
+              if(DIFSWindowCount <= 0){
+                m_state = STATE_RTS;
+              }
+            }
+            break;
+          }
+          case STATE_RTS:{
+            sendRTSPacket();
+            m_state = STATE_LISTEN;
+            break;
+          }
+          case STATE_LISTEN:{
+            ListenRTSLength--;
+            if(ListenRTSLength <= 0){
+              m_phase = STATE_PHASE3;
+              m_state = STATE_DIFS;
+              DIFSWindowCount = DIFSWINDOWCOUNT;
+              DIFSLength = 1;
+            }
+            break;
+          }
+          default:
+            break;
+        }
+        break;
+      }
+      case STATE_PHASE3:{
+        switch (m_state)
+        {
+          case STATE_DIFS:{
+            DIFSLength--;
+            if(DIFSLength <= 0){
+              DIFSLength = ;
+              DIFSWindowCount--;
+              if(DIFSWindowCount <= 0){
+                m_state = STATE_RTS;
+              }
+            }
+            break;
+          }
+          case STATE_DATA:{
+            sendDataPacket();
+            m_state = STATE_RESET;
+          }
+          default:
+            break;
+        }
+        break;
+      }
+      default:
+        break;
+      }
 
       // Do <+signal processing+>
       // Tell runtime system how many input items we consumed on
       // each input stream.
-      consume_each (noutput_items);
+      consume_each (0);
 
       // Tell runtime system how many output items we produced.
-      return noutput_items;
+      return 0;
     }
 
   } /* namespace LoRaNoCCA */

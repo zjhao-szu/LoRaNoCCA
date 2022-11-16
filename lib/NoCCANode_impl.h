@@ -22,6 +22,8 @@
 #define INCLUDED_LORANOCCA_NOCCANODE_IMPL_H
 
 #include <LoRaNoCCA/NoCCANode.h>
+#include <vector>
+#include <iostream>
 
 namespace gr {
   namespace LoRaNoCCA {
@@ -29,12 +31,27 @@ namespace gr {
     class NoCCANode_impl : public NoCCANode
     {
      private:
-      // Nothing to declare in this block.
-
+      NODEPHASE m_phase;
+      NODESTATE m_state;
+      pmt::pmt_t m_outputData;
+      pmt::pmt_t m_inputRTS;
+      pmt::pmt_t m_inputData;
+      int DIFSLength;
+      int DIFSWindowCount;
+      int 1;
+      float probablity;
+      int NAVLength;
+      int m_nodeId;
+      std::vector<std::string> messages;
      public:
-      NoCCANode_impl();
+      NoCCANode_impl(uint32_t NodeID);
       ~NoCCANode_impl();
 
+      void receiveDataMessage(pmt::pmt_t msg);
+      void receiveRTSMessage(pmt::pmt_t msg);
+      std::vector<std::string> parseRTSMessage(std::string msgString);
+      void sendRTSPacket();
+      void sendDataPacket();
       // Where all the action really happens
       void forecast (int noutput_items, gr_vector_int &ninput_items_required);
 

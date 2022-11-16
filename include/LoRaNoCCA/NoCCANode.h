@@ -26,7 +26,19 @@
 
 namespace gr {
   namespace LoRaNoCCA {
-
+    enum NODEPHASE{
+      STATE_PHASE1,
+      STATE_PHASE2,
+      STATE_PHASE3
+    };
+    enum NODESTATE{
+      STATE_DIFS,
+      STATE_DATA,
+      STATE_RTS,
+      STATE_LISTEN,
+      STATE_NAV,
+      STATE_RESET
+    };
     /*!
      * \brief <+description of block+>
      * \ingroup LoRaNoCCA
@@ -45,7 +57,7 @@ namespace gr {
        * class. LoRaNoCCA::NoCCANode::make is the public interface for
        * creating new instances.
        */
-      static sptr make();
+      static sptr make(uint32_t NodeID);
     };
 
   } // namespace LoRaNoCCA
