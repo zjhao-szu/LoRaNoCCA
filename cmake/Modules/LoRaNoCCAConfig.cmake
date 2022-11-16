@@ -1,0 +1,31 @@
+INCLUDE(FindPkgConfig)
+PKG_CHECK_MODULES(PC_LORANOCCA LoRaNoCCA)
+
+FIND_PATH(
+    LORANOCCA_INCLUDE_DIRS
+    NAMES LoRaNoCCA/api.h
+    HINTS $ENV{LORANOCCA_DIR}/include
+        ${PC_LORANOCCA_INCLUDEDIR}
+    PATHS ${CMAKE_INSTALL_PREFIX}/include
+          /usr/local/include
+          /usr/include
+)
+
+FIND_LIBRARY(
+    LORANOCCA_LIBRARIES
+    NAMES gnuradio-LoRaNoCCA
+    HINTS $ENV{LORANOCCA_DIR}/lib
+        ${PC_LORANOCCA_LIBDIR}
+    PATHS ${CMAKE_INSTALL_PREFIX}/lib
+          ${CMAKE_INSTALL_PREFIX}/lib64
+          /usr/local/lib
+          /usr/local/lib64
+          /usr/lib
+          /usr/lib64
+          )
+
+include("${CMAKE_CURRENT_LIST_DIR}/LoRaNoCCATarget.cmake")
+
+INCLUDE(FindPackageHandleStandardArgs)
+FIND_PACKAGE_HANDLE_STANDARD_ARGS(LORANOCCA DEFAULT_MSG LORANOCCA_LIBRARIES LORANOCCA_INCLUDE_DIRS)
+MARK_AS_ADVANCED(LORANOCCA_LIBRARIES LORANOCCA_INCLUDE_DIRS)
