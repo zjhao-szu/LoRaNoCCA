@@ -27,8 +27,8 @@
 
 #define MAX 99 //精度为小数点后面1位 999为小数点后面3位
 #define PROBABLITY 0.1
-#define DIFSWINDOWCOUNT 1000
-#define LISTENRTS 30
+#define DIFSWINDOWCOUNT 20000
+#define LISTENRTS 3000
 #define DIFSLENGTH 1
 namespace gr {
   namespace LoRaNoCCA {
@@ -130,7 +130,7 @@ namespace gr {
       if(msgString.find("RTS") != std::string::npos){
         //HEADER 包括20bytes
         std::vector<std::string> res = parseRTSMessage(msgString);        
-        NAVLength = std::stoi(res[2]) + 10;
+        NAVLength = std::stoi(res[2]) + 10000;
         m_state = STATE_NAV;
       }else{
         std::cout<<"Receive DATA:: "<<msgString<<std::endl;
@@ -181,7 +181,7 @@ namespace gr {
       uint32_t * out = (uint32_t *) output_items[0];
       if (m_state == STATE_RESET){
         if(messages.size() > 0){
-          std::cout<<"message size is "<<messages.size()<<std::endl;
+          std::cout<<"message size is "<< messages.size()<<std::endl;
           float p = rand() % (MAX + 1) / (float)( MAX + 1);
           std::cout<<"Probablity is "<<p<<std::endl;
           if(p > (1- probablity)){
@@ -245,7 +245,7 @@ namespace gr {
             std::cout<<"send RTS packet"<<std::endl;
             sendRTSPacket();
             m_state = STATE_LISTEN;
-            ListenRTSLength = DIFSWindowCount * DIFSLength + LISTENRTS;
+            ListenRTSLength = DIFSWINDOWCOUNT * DIFSLength + LISTENRTS;
             break;
           }
           case STATE_LISTEN:{
