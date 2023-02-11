@@ -25,11 +25,11 @@
 #include <gnuradio/io_signature.h>
 #include "NoCCANode_impl.h"
 
-#define MAX 9 //精度为小数点后面1位 999为小数点后面3位
+#define MAX 99 //精度为小数点后面1位 999为小数点后面3位
 #define PROBABLITY 0.1
-#define DIFSWINDOWCOUNT 7
+#define DIFSWINDOWCOUNT 1000
 #define LISTENRTS 30
-#define DIFSLength 1
+#define DIFSLENGTH 1
 namespace gr {
   namespace LoRaNoCCA {
 
@@ -46,11 +46,12 @@ namespace gr {
      */
     NoCCANode_impl::NoCCANode_impl(uint32_t NodeID)
       : gr::block("NoCCANode",
-              gr::io_signature::make(0, 0, 0),
+              gr::io_signature::make(1, 1, sizeof(gr_complex)),
               gr::io_signature::make(0, 0, 0)),
               m_nodeId(NodeID)
     {
       m_state = STATE_RESET;
+      std::cout<<"NoCCA Node "<<NodeID<<" init!!!!!"<<std::endl;
       m_outputData = pmt::mp("outputData");
       m_inputRTS = pmt::mp("InputRTS");
       m_inputData = pmt::mp("InputData");
@@ -115,19 +116,20 @@ namespace gr {
     NoCCANode_impl::receiveDataMessage(pmt::pmt_t msg){
       //自动添加 如果messsages有数据且在reset状态，就会自动切换寻找
       messages.push_back(pmt::symbol_to_string(msg));
+      std::cout<<"user need send data: "<<pmt::symbol_to_string(msg)<<std::endl;
     }
     void 
     NoCCANode_impl::receiveRTSMessage(pmt::pmt_t msg){
       if(m_state != STATE_LISTEN){
         return;
       }
+
       std::string msgString = pmt::symbol_to_string(msg);
       //message 格式如下：
       //Type:RTS,NodeId:1,Duration:10
-
       if(msgString.find("RTS") != std::string::npos){
         //HEADER 包括20bytes
-        std::vector<std::string> res = parseMessage(msgString);        
+        std::vector<std::string> res = parseRTSMessage(msgString);        
         NAVLength = std::stoi(res[2]) + 10;
         m_state = STATE_NAV;
       }else{
@@ -144,7 +146,7 @@ namespace gr {
       }
 
       //class A采用先来先服务策略
-      std::string message = "Type:RTS,NodeId:"+to_string(m_nodeId)+",Duration:"+to_string(totalLen);
+      std::string message = "Type:RTS,NodeId:"+std::to_string(m_nodeId)+",Duration:"+std::to_string(totalLen);
       pmt::pmt_t pmtmsg = pmt::string_to_symbol(message);
       message_port_pub(m_outputData,pmtmsg);
     }
@@ -157,7 +159,8 @@ namespace gr {
         msg.append(messages[i]);
         msg.push_back('\n');
       }
-      pmt::pmt_t pmtmsg = pmt::string_to_symbol(message);
+      messages.clear();
+      pmt::pmt_t pmtmsg = pmt::string_to_symbol(msg);
       message_port_pub(m_outputData,pmtmsg);
     }
 
@@ -165,7 +168,7 @@ namespace gr {
     NoCCANode_impl::forecast (int noutput_items, gr_vector_int &ninput_items_required)
     {
       /* <+forecast+> e.g. ninput_items_required[0] = noutput_items */
-      // ninput_items_required[0] = noutput_items;
+      ninput_items_required[0] = noutput_items;
     }
 
     int
@@ -178,17 +181,20 @@ namespace gr {
       uint32_t * out = (uint32_t *) output_items[0];
       if (m_state == STATE_RESET){
         if(messages.size() > 0){
-          int p = rand() % (MAX + 1) / (float)(MAX + 1);
+          std::cout<<"message size is "<<messages.size()<<std::endl;
+          float p = rand() % (MAX + 1) / (float)( MAX + 1);
+          std::cout<<"Probablity is "<<p<<std::endl;
           if(p > (1- probablity)){
             m_phase = STATE_PHASE2;
+            std::cout<<"login PHASE 2"<<std::endl;
           }else{
             m_phase = STATE_PHASE1;
-          }
+            std::cout<<"login PHASE 1"<<std::endl;
+          } 
           NAVLength = ListenRTSLength;
           DIFSWindowCount = DIFSWINDOWCOUNT;
           DIFSLength = 1;
           ListenRTSLength = DIFSWindowCount * DIFSLength + LISTENRTS;
-
         }else{
            // Do <+signal processing+>
           // Tell runtime system how many input items we consumed on
@@ -203,7 +209,6 @@ namespace gr {
         if(NAVLength <= 0){
           m_state = STATE_RESET;
           NAVLength = ListenRTSLength;
-
         }
       }
       switch (m_phase)
@@ -230,19 +235,17 @@ namespace gr {
         switch (m_state)
         {
           case STATE_DIFS:{
-            DIFSLength--;
-            if(DIFSLength <= 0){
-              DIFSLength = ;
-              DIFSWindowCount--;
-              if(DIFSWindowCount <= 0){
-                m_state = STATE_RTS;
-              }
+            DIFSWindowCount--;
+            if(DIFSWindowCount  <=  0){
+              m_state = STATE_RTS;
             }
             break;
           }
           case STATE_RTS:{
+            std::cout<<"send RTS packet"<<std::endl;
             sendRTSPacket();
             m_state = STATE_LISTEN;
+            ListenRTSLength = DIFSWindowCount * DIFSLength + LISTENRTS;
             break;
           }
           case STATE_LISTEN:{
@@ -251,7 +254,7 @@ namespace gr {
               m_phase = STATE_PHASE3;
               m_state = STATE_DIFS;
               DIFSWindowCount = DIFSWINDOWCOUNT;
-              DIFSLength = 1;
+              DIFSLength = DIFSLENGTH;
             }
             break;
           }
@@ -264,17 +267,14 @@ namespace gr {
         switch (m_state)
         {
           case STATE_DIFS:{
-            DIFSLength--;
-            if(DIFSLength <= 0){
-              DIFSLength = ;
-              DIFSWindowCount--;
-              if(DIFSWindowCount <= 0){
-                m_state = STATE_RTS;
-              }
+            DIFSWindowCount--;
+            if(DIFSWindowCount <= 0){
+                m_state = STATE_DATA ;
             }
             break;
           }
           case STATE_DATA:{
+            std::cout<<"send Data packet"<<std::endl;
             sendDataPacket();
             m_state = STATE_RESET;
           }

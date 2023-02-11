@@ -38,7 +38,7 @@ namespace gr {
       pmt::pmt_t m_inputData;
       int DIFSLength;
       int DIFSWindowCount;
-      int 1;
+      int ListenRTSLength;
       float probablity;
       int NAVLength;
       int m_nodeId;
