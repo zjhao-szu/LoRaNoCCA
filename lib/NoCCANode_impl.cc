@@ -27,7 +27,7 @@
 
 #define MAX 99 //精度为小数点后面1位 999为小数点后面3位
 #define PROBABLITY 0.1
-#define DIFSWINDOWCOUNT 20000
+#define DIFSWINDOWCOUNT 2000
 #define LISTENRTS 3000
 #define DIFSLENGTH 1
 namespace gr {

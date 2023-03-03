@@ -152,10 +152,10 @@ blocks:
   parameters:
     affinity: ''
     alias: ''
+    channelsf: '7'
     comment: ''
     maxoutbuf: '0'
     minoutbuf: '0'
-    nodesf: '7'
   states:
     bus_sink: false
     bus_source: true
@@ -274,7 +274,7 @@ blocks:
     clock_source6: ''
     clock_source7: ''
     comment: ''
-    dev_addr: '"serial=3241A02"'
+    dev_addr: '"serial=326F46F"'
     dev_args: '""'
     gain0: '90'
     gain1: '0'
@@ -583,7 +583,7 @@ blocks:
     dc_offs_enb7: '""'
     dc_offs_enb8: '""'
     dc_offs_enb9: '""'
-    dev_addr: '"serial=3241A02"'
+    dev_addr: '"serial=326F46F"'
     dev_args: '""'
     gain0: '90'
     gain1: '0'
@@ -818,7 +818,7 @@ connections:
 - [RC_MAC_PHY_Sender_0, '0', uhd_usrp_sink_0, '0']
 - [blocks_message_strobe_0, strobe, LoRaNoCCA_NoCCANode_0, InputData]
 - [blocks_message_strobe_random_0, strobe, LoRaNoCCA_NoCCANode_0, InputData]
-- [rc_mac_phy_receiver_0, Msgout, LoRaNoCCA_NoCCANode_0, InputRTS]
+- [rc_mac_phy_receiver_0, out, LoRaNoCCA_NoCCANode_0, InputRTS]
 - [uhd_usrp_source_0, '0', LoRaNoCCA_NoCCANode_0, '0']
 - [uhd_usrp_source_0, '0', rc_mac_phy_receiver_0, '0']
 

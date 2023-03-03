@@ -45,7 +45,7 @@ class NoCCABasicNode(gr.top_block):
         # Blocks
         ##################################################
         self.uhd_usrp_source_0 = uhd.usrp_source(
-            ",".join(("serial=3241A01", "")),
+            ",".join(("serial=326F46F", "")),
             uhd.stream_args(
                 cpu_format="fc32",
                 args='',
@@ -59,7 +59,7 @@ class NoCCABasicNode(gr.top_block):
         self.uhd_usrp_source_0.set_samp_rate(samp_rate)
         # No synchronization enforced.
         self.uhd_usrp_sink_0 = uhd.usrp_sink(
-            ",".join(("serial=3241A01", "")),
+            ",".join(("serial=326F46F", "")),
             uhd.stream_args(
                 cpu_format="fc32",
                 args='',
@@ -75,9 +75,9 @@ class NoCCABasicNode(gr.top_block):
         self.uhd_usrp_sink_0.set_samp_rate(samp_rate)
         # No synchronization enforced.
         self.rc_mac_phy_receiver_0 = rc_mac_phy_receiver(
-            nodesf=7,
+            channelsf=7,
         )
-        self.blocks_message_strobe_0 = blocks.message_strobe(pmt.intern("hello world,my name is node 2!"), 1000)
+        self.blocks_message_strobe_0 = blocks.message_strobe(pmt.intern("hello world,my name is node 1!"), 1000)
         self.RC_MAC_PHY_Sender_0 = RC_MAC_PHY_Sender()
         self.LoRaNoCCA_NoCCANode_0 = LoRaNoCCA.NoCCANode(1)
 
@@ -87,7 +87,7 @@ class NoCCABasicNode(gr.top_block):
         ##################################################
         self.msg_connect((self.LoRaNoCCA_NoCCANode_0, 'outputData'), (self.RC_MAC_PHY_Sender_0, 'in'))
         self.msg_connect((self.blocks_message_strobe_0, 'strobe'), (self.LoRaNoCCA_NoCCANode_0, 'InputData'))
-        self.msg_connect((self.rc_mac_phy_receiver_0, 'Msgout'), (self.LoRaNoCCA_NoCCANode_0, 'InputRTS'))
+        self.msg_connect((self.rc_mac_phy_receiver_0, 'out'), (self.LoRaNoCCA_NoCCANode_0, 'InputRTS'))
         self.connect((self.RC_MAC_PHY_Sender_0, 0), (self.uhd_usrp_sink_0, 0))
         self.connect((self.uhd_usrp_source_0, 0), (self.LoRaNoCCA_NoCCANode_0, 0))
         self.connect((self.uhd_usrp_source_0, 0), (self.rc_mac_phy_receiver_0, 0))
